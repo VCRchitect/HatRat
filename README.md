@@ -17,6 +17,8 @@ If you hold still (or even just relatively still) for 3 seconds, the mouse will 
 
 If you need to reset the orientation of the mouse, look to the edge of the screen. Like, if your head is too far turned to the left, just turn all the way to the right until you're about where you want "right" to be. The same holds true for up, down, left, and right.
 
+If you're clicking and dragging and need to drop something with precision, hold your head still for the 3 seconds to freeze the mouse in place before you tilt the opposite direction to release the click.
+
 In the repository is the Arduino sketch, 3D print files, and KiCAD files needed to build the thing.
 
 Bill of Materials
