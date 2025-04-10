@@ -21,20 +21,20 @@ float ypr[3]; // [yaw, pitch, roll] in radians from DMP
 // ----- CURSOR MOVEMENT -----
 float lastYaw   = 0.0f;
 float lastPitch = 0.0f;
-float sensitivity = 65.0f;
+float sensitivity = 60.0f;
 static float accuX = 0.0f;
 static float accuY = 0.0f;
 
 // ----- STILLNESS / LOCK LOGIC -----
 bool locked = false;          
 static unsigned long stillStartTime = 0;
-static const float STILL_DEADZONE = 2.5f;   // degrees threshold for "still"
-static const unsigned long STILL_THRESHOLD_MS = 3000; // hold still 3s => lock
+static const float STILL_DEADZONE = 3.5f;   // degrees threshold for "still"
+static const unsigned long STILL_THRESHOLD_MS = 1750; // hold still 2s => lock
 float lockYaw   = 0.0f;  
 float lockPitch = 0.0f;  
 
 // ----- PRESS-AND-HOLD TILT LOGIC -----
-static const float ROLL_TILT_THRESHOLD = 15.0f;  
+static const float ROLL_TILT_THRESHOLD = 7.0f;  
 static bool leftHeld  = false;
 static bool rightHeld = false;
 
@@ -92,12 +92,12 @@ void setup() {
   devStatus = mpu.dmpInitialize();
 
   // Example calibration offsets—adjust for your MPU
-  mpu.setXAccelOffset(237);
-  mpu.setYAccelOffset(1588);
-  mpu.setZAccelOffset(552);
-  mpu.setXGyroOffset(100);
-  mpu.setYGyroOffset(-68);
-  mpu.setZGyroOffset(-43);
+  mpu.setXAccelOffset(-126);
+  mpu.setYAccelOffset(155);
+  mpu.setZAccelOffset(1557);
+  mpu.setXGyroOffset(165);
+  mpu.setYGyroOffset(-22);
+  mpu.setZGyroOffset(3);
 
   // Check if DMP init was successful
   if (devStatus == 0) {

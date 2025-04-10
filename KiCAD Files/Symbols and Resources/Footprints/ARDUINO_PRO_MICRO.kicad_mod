@@ -32,6 +32,10 @@
     (stroke (width 0.381) (type solid)) (layer "F.SilkS")(uuid "abc010ec-9655-40d8-ab3a-644484209ef6"))
   (fp_line (start 15.24 8.89) (end 15.24 -8.89)
     (stroke (width 0.381) (type solid)) (layer "F.SilkS")(uuid "902f7753-4546-418a-b25b-645cb33492d2"))
+  (fp_rect (start -23.45 -3.97) (end -21.7 4.03)
+    (stroke (width 0.1) (type default)) (fill none) (layer "F.SilkS")(uuid "5ec47684-e84c-4b09-932b-6f1cbab1d2ef"))
+  (fp_rect (start -21.7 -8.89) (end -15.24 8.95)
+    (stroke (width 0.1) (type default)) (fill none) (layer "F.SilkS")(uuid "055ea572-2353-4689-8062-644d6d88c7c7"))
   (pad "1" thru_hole rect (at -13.97 7.62) (size 1.7526 1.7526) (drill 1.0922) (layers "*.Cu" "*.SilkS" "*.Mask")(remove_unused_layers no)
 
 (uuid "41f6e17a-c18b-455a-a208-64962c8d84a5")
@@ -127,5 +131,10 @@
   (pad "24" thru_hole circle (at -13.97 -7.62) (size 1.7526 1.7526) (drill 1.0922) (layers "*.Cu" "*.SilkS" "*.Mask")(remove_unused_layers no)
 
 (uuid "ccd440e4-1111-4313-b416-5a34ccd140ce")
+  )
+  (model "C:/Users/User/Documents/KiCad/8.0/3dmodels/arduino-pro-micro-usb-type-c-1.snapshot.2/Arduino Pro Micro USB Type C.step"
+    (offset (xyz -14 8.5 1))
+    (scale (xyz 1 1 1))
+    (rotate (xyz 0 0 0))
   )
 )
