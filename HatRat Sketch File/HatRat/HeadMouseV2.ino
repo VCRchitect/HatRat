@@ -13,19 +13,24 @@
 #include <Mouse.h>
 
 /* ─── USER KNOBS ─────────────────────────────────────────── */
-const float SENSITIVITY = 75.0f;   // px / deg
-const float HORIZ_GAIN = -1.0f;    // flip L/R
-const float PITCH_SIGN = -1.0f;    // look-down → cursor-down
-const float DEADZONE_DEG = 0.0825f;  // ignore < 0.03 °
-const float SMOOTH_ALPHA = 0.3f;  // 0(off)…1(none)
-const float FILTER_BETA = 0.12f;   // 0.10–0.15 snappy
+const float SENSITIVITY = 160.0f;       // px / deg
+const float HORIZ_GAIN = -1.0f;         // flip L/R
+const float PITCH_SIGN = -1.0f;         // look-down → cursor-down
+const float DEADZONE_DEG = 0.03f;       // ignore < 0.03 °
+const float SMOOTH_ALPHA = 0.3f;        // 0(off)…1(none)
+const float FILTER_BETA = 0.11f;        // 0.10–0.15 snappy
+const unsigned long LATCH_TIME = 2000;  // ms you must hold to “lock” drag
+
+
+const float QUIET_DEG = 0.03f;  // hard dead-zone (º)
+const float LIN_START = 0.10f;
 
 /* Sip-&-Puff */
-const long SIP_THR = -255000;
-const long PUFF_THR = 175000;
+const long SIP_THR = -1205000;
+const long PUFF_THR = 586000;
 const byte HX_OVERSAMPLE = 2;
-const float BASELINE_A = 0.001f;
-const unsigned long CLICK_GAP = 50;  // ms
+const float BASELINE_A = 0.005f;
+const unsigned long CLICK_GAP = 100;  // ms
 /* ─────────────────────────────────────────────────────────── */
 
 /* Pin map */
@@ -90,57 +95,88 @@ void zeroOrientation() {
 }
 
 /* ─── Sip-&-Puff FSM  (non-blocking) ────────────────────── */
+
 void sipPuff() {
-  static byte sCnt = 0;  // oversample counter
-  static long sSum = 0;  // running total
+  static byte sCnt = 0;
+  static long sSum = 0;
   static enum { IDLE,
-                SIP,
-                PUFF } st = IDLE;
-  static unsigned long lastClick = 0;
+                SIP_HOLD,
+                PUFF_HOLD } st = IDLE;
+  static unsigned long pressStart = 0;
+  static unsigned long lastEdge = 0;
+  static bool latchedRight = false;
+  static bool latchedLeft = false;
+  const long SIP_LOCK_THR = SIP_THR * 2.0;    // 70 % deeper
+  const long PUFF_LOCK_THR = PUFF_THR * 2.0;  // 70 % higher
 
-  if (!hx.is_ready()) return;          // HX711 still converting
-  sSum += hx.read();                   // accumulate a sample
-  if (++sCnt < HX_OVERSAMPLE) return;  // wait for N samples
+  /* 1. Read HX711 -------------------------------------------------- */
+  if (!hx.is_ready()) return;
+  sSum += hx.read();
+  if (++sCnt < HX_OVERSAMPLE) return;
 
-  long avg = sSum / sCnt;  // --------- one complete reading ---------
+  long avg = sSum / sCnt;
   sSum = 0;
   sCnt = 0;
-
   baseline += (long)((avg - baseline) * BASELINE_A);
-  diffFilt = diffFilt * 7 / 8 + (avg - baseline) / 8;
+  diffFilt = diffFilt * 5 / 8 + (avg - baseline) * 3 / 8;
 
-  /* ── OPTIONAL DEBUG OUTPUT ───────────────────────────── */
-  static unsigned long lastDbg = 0;
-  if (millis() - lastDbg > 50) {  // ~20 Hz is plenty
-    Serial.print(F("raw="));
-    Serial.print(avg);
-    Serial.print(F("  base="));
-    Serial.print(baseline);
-    Serial.print(F("  diff="));
-    Serial.println(diffFilt);
-    lastDbg = millis();
-  }
-  /* ────────────────────────────────────────────────────── */
-
+  /* 2. State machine ---------------------------------------------- */
   unsigned long now = millis();
+
   switch (st) {
+    /* ---------- idle: waiting for a threshold crossing ------------- */
     case IDLE:
-      if (diffFilt < SIP_THR && now - lastClick > CLICK_GAP) {
-        Mouse.click(MOUSE_RIGHT);
-        st = SIP;
-        lastClick = now;
-      } else if (diffFilt > PUFF_THR && now - lastClick > CLICK_GAP) {
-        Mouse.click(MOUSE_LEFT);
-        st = PUFF;
-        lastClick = now;
+      /* --- SIP detected (right button) --- */
+      if (diffFilt < SIP_THR && now - lastEdge > CLICK_GAP) {
+        if (latchedRight) {  // unlock if already latched
+          Mouse.release(MOUSE_RIGHT);
+          latchedRight = false;
+          lastEdge = now;
+        } else {
+          Mouse.press(MOUSE_RIGHT);  // start a potential click
+          pressStart = now;
+          st = SIP_HOLD;
+        }
+      }
+      /* --- PUFF detected (left button) --- */
+      else if (diffFilt > PUFF_THR && now - lastEdge > CLICK_GAP) {
+        if (latchedLeft) {
+          Mouse.release(MOUSE_LEFT);
+          latchedLeft = false;
+          lastEdge = now;
+        } else {
+          Mouse.press(MOUSE_LEFT);
+          pressStart = now;
+          st = PUFF_HOLD;
+        }
       }
       break;
 
-    case SIP:
-      if (diffFilt > SIP_THR / 2) st = IDLE;
+      /* ---------- right button is being held ----------------- */
+    case SIP_HOLD:
+      /* Lock only if you are STILL below the deeper line AND time met */
+      if (!latchedRight && diffFilt < SIP_LOCK_THR && now - pressStart >= LATCH_TIME) {
+        latchedRight = true;  // deliberate lock
+        st = IDLE;
+      }
+      /* Release for ordinary click */
+      else if (diffFilt > SIP_THR * 0.45f) {  // raise to 45 % so it lets go sooner
+        Mouse.release(MOUSE_RIGHT);
+        lastEdge = now;
+        st = IDLE;
+      }
       break;
-    case PUFF:
-      if (diffFilt < PUFF_THR / 2) st = IDLE;
+
+    /* ---------- left button is being held ------------------ */
+    case PUFF_HOLD:
+      if (!latchedLeft && diffFilt > PUFF_LOCK_THR && now - pressStart >= LATCH_TIME) {
+        latchedLeft = true;
+        st = IDLE;
+      } else if (diffFilt < PUFF_THR * 0.45f) {
+        Mouse.release(MOUSE_LEFT);
+        lastEdge = now;
+        st = IDLE;
+      }
       break;
   }
 }
@@ -176,6 +212,23 @@ void setup() {
   Mouse.begin();
 }
 
+inline float softGain(float deg) {
+  float absd = fabsf(deg);
+  if (absd <= QUIET_DEG)  // in the absolute dead-zone
+    return 0.0f;
+
+  float sign = (deg >= 0) ? 1.0f : -1.0f;
+
+  if (absd <= LIN_START) {                                   // cubic easing segment
+    float t = (absd - QUIET_DEG) / (LIN_START - QUIET_DEG);  // 0-1
+    float eased = t * t * t;                                 // cubic ramp
+    return sign * eased * LIN_START;                         // ≤ LIN_START so it blends
+  } else {
+    return deg;  // fully linear beyond 0.15°
+  }
+}
+
+
 /* ─── LOOP ───────────────────────────────────────────────── */
 void loop() {
   /* 1. IMU + Compass → Madgwick */
@@ -205,8 +258,8 @@ void loop() {
   float yaw = d2(atan2f(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)));
   float pitch = d2(asinf(2 * (q.w * q.y - q.z * q.x)));
 
-  accuX += dz(dAng(yaw, lastYaw)) * SENSITIVITY * HORIZ_GAIN;
-  accuY += dz(pitch - lastPitch) * SENSITIVITY * PITCH_SIGN;
+  accuX += softGain(dAng(yaw, lastYaw)) * SENSITIVITY * HORIZ_GAIN;
+  accuY += softGain(pitch - lastPitch) * SENSITIVITY * PITCH_SIGN;
   lastYaw = yaw;
   lastPitch = pitch;
 
